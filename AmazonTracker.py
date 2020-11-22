@@ -13,17 +13,17 @@ from bs4 import BeautifulSoup
 # 设置
 #---------------------------------------------------------------------
 #设定价格,低于此价格时发送微信
-setPrice = 32100
+setPrice = 60000
 #卖家，只看日亚直营
 setSeller = "Amazon.co.jp"
 #Server酱SCKEY (获取SCKEY：请注册一个GitHub账号，然后访问 https://sc.ftqq.com/?c=code，绑定完微信之后，把你的SCUKEY贴在下方，请保留引号)
-sckey = "SCUxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+sckey = "SCUxxxxx"
 #追踪日亚商品网址，请保留引号
-url = "https://www.amazon.co.jp/Nintendo-Switch-Joy-ネオンブルー-ネオンレッド/dp/B01NCXFWIZ/"
+url = "https://www.amazon.co.jp/-/zh/dp/B08GGKZ34Z/ref=lp_8019293051_1_1?s=videogames&ie=UTF8&qid=1605968110&sr=1-1"
 #价格检查间隔时间(秒)
 timeInterval = 60
 #错误重试间隔时间(秒)
-errorInterval = 5
+errorInterval = 10
 #---------------------------------------------------------------------
 #提醒Title,如无特殊无需改动
 title =  "日亚上架提醒"
@@ -66,19 +66,23 @@ def getPrice(url,user_agent_list):
             }
         )
         f = urllib.request.urlopen(req)
-        soup = BeautifulSoup(f.read().decode('utf-8','ignore'), "lxml")
+        soup = BeautifulSoup(f.read().decode('utf-8','ignore'),"html5lib")
         data_p = soup.find('span',id="priceblock_ourprice")
         data_s = soup.find('div',id="merchant-info")
+        print("price:" + str(data_p))
+        # print("seller:" + str(data_s))
         if data_p is None:
             return 0,0 #Error
-        if data_s is None:
-        	return 0,0
         else:
-            price = int(data_p.string[2:].replace(",",""))
+            priceStr = data_p.string[3:].replace(",","")
+            print("data_p.string",priceStr)
+            price = int(priceStr)
             seller = data_s.a.get_text()
+            print("seller:" + seller)
             return price,seller
-    except:
-        return 0,0
+    except Exception as e: 
+        print(e)
+        return -1,-1
 
 def getSeller(url,user_agent_list):
     try:
@@ -109,10 +113,16 @@ def sendAlarm(title,content):
 
 def main():
     while True:
-        price = getPrice(url,user_agent_list)[0]
-        seller = getPrice(url,user_agent_list)[1]
-        if(price == 0) or (seller == 0):
-            print("获取价格失败，" + str(errorInterval) + "秒后重试")
+        data = getPrice(url,user_agent_list)
+        price = data[0]
+        seller = data[1]
+        if(price == 0) or (price == -1) :
+            if price == 0:
+                print("未上架，" + str(errorInterval) + "秒后重试")
+            else:
+                content = "获取价格失败，" + str(errorInterval) + "秒后重试"
+                print(content)
+                sendAlarm(title,content)
             time.sleep(errorInterval)
         else:
             break
@@ -121,10 +131,12 @@ def main():
     if price <= setPrice :
         if seller == setSeller :
             content = content + ",已达到设定值" + str(setPrice) + ",买买买!"
+            print(content)
             sendAlarm(title,content)
         else :
             content = content + ",已达到设定值" + str(setPrice) + ",但是卖家不对!"
             print(content)
+            sendAlarm(title,content)
     else:
         content = content+ ",未达到设定值" + str(setPrice)
         print(content)
